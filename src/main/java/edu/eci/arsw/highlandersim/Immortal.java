@@ -2,6 +2,7 @@ package edu.eci.arsw.highlandersim;
 
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Immortal extends Thread {
 
@@ -17,6 +18,8 @@ public class Immortal extends Thread {
 
     private final Random r = new Random(System.currentTimeMillis());
 
+    private static AtomicBoolean paused;
+    private static Object lock;
 
     public Immortal(String name, List<Immortal> immortalsPopulation, int health, int defaultDamageValue, ImmortalUpdateReportCallback ucb) {
         super(name);
@@ -25,26 +28,25 @@ public class Immortal extends Thread {
         this.immortalsPopulation = immortalsPopulation;
         this.health = health;
         this.defaultDamageValue=defaultDamageValue;
+        paused = new AtomicBoolean(false);
+        lock = new Object();
+    }
+
+    public static void pauseNotify() {
+        lock.notifyAll();
     }
 
     public void run() {
-
         while (true) {
             Immortal im;
-
             int myIndex = immortalsPopulation.indexOf(this);
-
             int nextFighterIndex = r.nextInt(immortalsPopulation.size());
-
             //avoid self-fight
             if (nextFighterIndex == myIndex) {
                 nextFighterIndex = ((nextFighterIndex + 1) % immortalsPopulation.size());
             }
-
             im = immortalsPopulation.get(nextFighterIndex);
-
             this.fight(im);
-
             try {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
@@ -56,7 +58,6 @@ public class Immortal extends Thread {
     }
 
     public void fight(Immortal i2) {
-
         if (i2.getHealth() > 0) {
             i2.changeHealth(i2.getHealth() - defaultDamageValue);
             this.health += defaultDamageValue;
@@ -64,7 +65,6 @@ public class Immortal extends Thread {
         } else {
             updateCallback.processReport(this + " says:" + i2 + " is already dead!\n");
         }
-
     }
 
     public void changeHealth(int v) {
@@ -75,9 +75,16 @@ public class Immortal extends Thread {
         return health;
     }
 
+    public static Object getLock(){
+        return lock;
+    }
+
+    public boolean getPausedLock(){
+        return paused.get();
+    }
+
     @Override
     public String toString() {
-
         return name + "[" + health + "]";
     }
 
