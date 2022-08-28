@@ -17,8 +17,6 @@ import java.util.logging.Logger;
 
 public class StartProduction {
 
-
-
     public static void main(String[] args) {
 
         Queue<Integer> queue=new LinkedBlockingQueue<>();

@@ -30,15 +30,16 @@ public class ControlFrame extends JFrame {
 
     private JPanel contentPane;
 
-    private List<Immortal> immortals;
+    private static List<Immortal> immortals;
 
     private JTextArea output;
     private JLabel statisticsLabel;
     private JScrollPane scrollPane;
-    private JTextField numOfImmortals;
+    private static JTextField numOfImmortals;
 
     private static AtomicBoolean paused;
     private static Object lock;
+    private static AtomicBoolean stoped;
 
     /**
      * Launch the application.
@@ -46,6 +47,7 @@ public class ControlFrame extends JFrame {
     public static void main(String[] args) {
         paused = new AtomicBoolean(false);
         lock  = new Object();
+        stoped = new AtomicBoolean(false);
         EventQueue.invokeLater(new Runnable() {
             public void run() {
                 try {
@@ -75,9 +77,7 @@ public class ControlFrame extends JFrame {
         final JButton btnStart = new JButton("Start");
         btnStart.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-
                 immortals = setupInmortals();
-
                 if (immortals != null) {
                     for (Immortal im : immortals) {
                         im.start();
@@ -115,29 +115,49 @@ public class ControlFrame extends JFrame {
         toolBar.add(lblNumOfImmortals);
 
         numOfImmortals = new JTextField();
-        numOfImmortals.setText("3");
+        numOfImmortals.setText("4");
         toolBar.add(numOfImmortals);
         numOfImmortals.setColumns(10);
 
         JButton btnStop = new JButton("STOP");
         btnStop.setForeground(Color.RED);
         toolBar.add(btnStop);
-
+        btnStop.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                stopThread();
+            }
+        });
         scrollPane = new JScrollPane();
         contentPane.add(scrollPane, BorderLayout.CENTER);
-
         output = new JTextArea();
         output.setEditable(false);
         scrollPane.setViewportView(output);
-        
-        
         statisticsLabel = new JLabel("Immortals total health:");
         contentPane.add(statisticsLabel, BorderLayout.SOUTH);
-
     }
 
-    public void pauseThread(){
-        synchronized (paused){
+    public static boolean pass(){
+        int a = 0;
+        for (Immortal i : immortals){
+            a+= i.getHealth();
+        }
+        return a == immortals.size()*100;
+    }
+
+    public static int getNumOfImmortals(){
+        return Integer.valueOf(numOfImmortals.getText())*100;
+    }
+
+    public void stopThread(){
+        synchronized (stoped){
+            stoped.set(true);
+            pauseThread();
+        }
+    }
+
+    public synchronized void pauseThread(){
+        synchronized (lock){
             if (!paused.get()){
                 paused.set(true);
                 System.out.println("Paused");
@@ -149,23 +169,26 @@ public class ControlFrame extends JFrame {
         }
     }
 
-    public void resumeThread(){
+    public synchronized void resumeThread(){
         synchronized (Immortal.getLock()){
-            System.out.println("Resumed");
-            paused.set(false);
-            Immortal.pauseNotify();
+            if (!stoped.get()) {
+                System.out.println("Resumed");
+                paused.set(false);
+                Immortal.pauseNotify();
+            }
         }
     }
 
-    public List<Immortal> setupInmortals() {
+    public static void notifyThreadLock(){
+        lock.notifyAll();
+    }
 
+    public List<Immortal> setupInmortals() {
         ImmortalUpdateReportCallback ucb=new TextAreaUpdateReportCallback(output,scrollPane);
-        
         try {
             int ni = Integer.parseInt(numOfImmortals.getText());
 
             List<Immortal> il = new LinkedList<Immortal>();
-
             for (int i = 0; i < ni; i++) {
                 Immortal i1 = new Immortal("im" + i, il, DEFAULT_IMMORTAL_HEALTH, DEFAULT_DAMAGE_VALUE,ucb);
                 il.add(i1);
@@ -175,11 +198,14 @@ public class ControlFrame extends JFrame {
             JOptionPane.showConfirmDialog(null, "Número inválido.");
             return null;
         }
-
     }
 
     public static Object getLock(){
         return lock;
+    }
+
+    public static boolean getPaused(){
+        return paused.get();
     }
 
 }
